@@ -1,0 +1,763 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Guild Profile Builder</title>
+  <style>
+    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+    body { margin: 24px; color: #111; }
+    h1 { margin: 0 0 12px 0; font-size: 22px; }
+    .grid { display: grid; grid-template-columns: 340px 1fr; gap: 18px; align-items: start; }
+    .card { border: 1px solid #ddd; border-radius: 10px; padding: 14px; background: #fff; }
+    label { display: block; font-weight: 600; margin: 10px 0 6px; }
+    select, input[type="text"] {
+      width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 8px;
+      font-size: 14px; background: #fff;
+    }
+    .btns { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+    button {
+      padding: 10px 12px; border: 1px solid #888; border-radius: 8px;
+      background: #f7f7f7; cursor: pointer; font-weight: 600;
+    }
+    button:hover { background: #efefef; }
+    .hint { font-size: 12px; color: #444; margin-top: 8px; line-height: 1.35; }
+    .kv { display: grid; grid-template-columns: 230px 1fr; gap: 8px 14px; }
+    .k { color: #333; font-weight: 700; }
+    .v { color: #111; }
+    .section-title { margin: 14px 0 8px; font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; }
+    ul { margin: 6px 0 0 18px; }
+
+    @media print {
+      body { margin: 0.5in; }
+      #controls { display: none !important; }
+      #output { border: none; padding: 0; }
+      .card { border: none; padding: 0; }
+      button { display: none !important; }
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <h1>Guild Profile Builder</h1>
+
+  <div class="grid">
+    <div id="controls" class="card">
+      <label for="settlementType">Settlement Type</label>
+      <select id="settlementType"></select>
+
+      <label for="settlementPopulation">Settlement Population (type a number or leave the range)</label>
+      <input id="settlementPopulation" type="text" placeholder="Example: 501" />
+
+      <label for="guildType">Guild Type</label>
+      <select id="guildType"></select>
+
+      <label for="localStanding">Local Standing (LS)</label>
+      <select id="localStanding"></select>
+
+      <label for="kingdomStanding">Kingdom Standing (KS)</label>
+      <select id="kingdomStanding"></select>
+
+      <label for="peerStanding">Peer Standing (PS)</label>
+      <select id="peerStanding"></select>
+
+      <label for="settlementName">Settlement Name (optional)</label>
+      <input id="settlementName" type="text" placeholder="Example: Bramblewick" />
+
+      <label for="guildName">Guild Name (optional)</label>
+      <input id="guildName" type="text" placeholder="Example: Lantern Hosts League" />
+
+      <div class="section-title">Leadership Names</div>
+
+      <label for="leaderName" id="leaderLabel">Guildmaster Name</label>
+      <input id="leaderName" type="text" />
+
+      <label for="deputyName" id="deputyLabel">Deputy Guildmaster Name</label>
+      <input id="deputyName" type="text" />
+
+      <label for="clerkName" id="clerkLabel">Contracts Clerk Name</label>
+      <input id="clerkName" type="text" />
+
+      <div class="btns">
+        <button type="button" id="btnRegenNames">Regenerate Names</button>
+        <button type="button" id="btnPrint">Print / Save as PDF</button>
+        <button type="button" id="btnReset">Reset</button>
+      </div>
+
+      <div class="hint">
+        Population syncing rules:
+        - Choose a settlement type and the population field fills with that band.
+        - Type a population number and the settlement type auto-switches to the matching band.
+      </div>
+    </div>
+
+    <div id="output" class="card">
+      <div class="section-title">Settlement Header</div>
+      <div class="kv">
+        <div class="k">Settlement Name</div><div class="v" id="outSettlementName"></div>
+        <div class="k">Settlement Type</div><div class="v" id="outSettlementType"></div>
+        <div class="k">Settlement Population</div><div class="v" id="outSettlementPopulation"></div>
+      </div>
+
+      <div class="section-title">Guild Profile</div>
+      <div class="kv">
+        <div class="k">Guild Name</div><div class="v" id="outGuildName"></div>
+        <div class="k">Group Term</div><div class="v" id="outGroupTerm"></div>
+        <div class="k">Domain</div><div class="v" id="outDomain"></div>
+        <div class="k">Local Footprint (0 to 4)</div><div class="v" id="outFootprint"></div>
+        <div class="k">Estimated Members</div><div class="v" id="outMembers"></div>
+        <div class="k">Facilities Present</div><div class="v" id="outFacilities"></div>
+        <div class="k">Key Offices</div><div class="v" id="outOffices"></div>
+        <div class="k">Local Standing</div><div class="v" id="outLS"></div>
+        <div class="k">Kingdom Standing</div><div class="v" id="outKS"></div>
+        <div class="k">Peer Standing</div><div class="v" id="outPS"></div>
+      </div>
+
+      <div class="section-title">Guild Leadership</div>
+      <div class="kv">
+        <div class="k" id="outLeaderTitle"></div><div class="v" id="outLeaderName"></div>
+        <div class="k" id="outDeputyTitle"></div><div class="v" id="outDeputyName"></div>
+        <div class="k" id="outClerkTitle"></div><div class="v" id="outClerkName"></div>
+      </div>
+
+      <div class="section-title">Typical Contracts to the Adventurers Guild</div>
+      <ul id="outContracts"></ul>
+    </div>
+  </div>
+
+<script>
+  // ---------- Configuration ----------
+
+  // Updated bands:
+  // Hamlet: 80-400
+  // Village: 401-900
+  // Small Town: 901-1,999
+  // Large Town: 2,000-5,000
+  // City: 5,001-25,000
+  // Metropolis: 25,001+
+  //
+  // Note: "factor" is an internal scaling value used for guild footprint and member ranges.
+  // It does not need to match population exactly, only provide sensible scaling.
+  const SettlementTypes = [
+    { key: "hamlet",     label: "Hamlet",     factor: 1, minPop: 80,    maxPop: 400,   populationLabel: "80 to 400" },
+    { key: "village",    label: "Village",    factor: 2, minPop: 401,   maxPop: 900,   populationLabel: "401 to 900" },
+    { key: "smallTown",  label: "Small Town", factor: 3, minPop: 901,   maxPop: 1999,  populationLabel: "901 to 1,999" },
+    { key: "largeTown",  label: "Large Town", factor: 3, minPop: 2000,  maxPop: 5000,  populationLabel: "2,000 to 5,000" },
+    { key: "city",       label: "City",       factor: 4, minPop: 5001,  maxPop: 25000, populationLabel: "5,001 to 25,000" },
+    { key: "metropolis", label: "Metropolis", factor: 5, minPop: 25001, maxPop: null,  populationLabel: "25,001+" },
+  ];
+
+  const ReputationScale = [
+    { label: "Reviled (-3)", score: -3 },
+    { label: "Distrusted (-2)", score: -2 },
+    { label: "Questioned (-1)", score: -1 },
+    { label: "Known (0)", score: 0 },
+    { label: "Respected (+1)", score: 1 },
+    { label: "Esteemed (+2)", score: 2 },
+    { label: "Celebrated (+3)", score: 3 },
+  ];
+
+  // Footprint base by settlement factor (1..5)
+  const FootprintBaseByFactor = { 1: 0, 2: 1, 3: 2, 4: 2, 5: 3 };
+
+  const MembersByFootprint = {
+    0: { min: 1,  max: 3   },
+    1: { min: 4,  max: 12  },
+    2: { min: 12, max: 30  },
+    3: { min: 30, max: 80  },
+    4: { min: 80, max: 200 },
+  };
+
+  const FacilitiesByFootprint = {
+    0: ["Representative desk", "Notice board"],
+    1: ["Office", "Meeting room"],
+    2: ["Hall", "Records", "Storage"],
+    3: ["Hall", "Training area", "Warehousing", "Dispatch or scheduling"],
+    4: ["Multiple sites", "Dedicated security", "Specialized facilities", "Civic presence"],
+  };
+
+  const FirstNames = [
+    "Alden","Aric","Bram","Calder","Corin","Dain","Eamon","Elias","Ember","Faron","Galen","Garrick",
+    "Hale","Ivo","Jasper","Kael","Liora","Lysander","Mara","Merrin","Nessa","Oren","Pera","Quinn",
+    "Rhea","Rowan","Selwyn","Tamsin","Thora","Venn","Willa","Ysolde","Zorin"
+  ];
+
+  const Surnames = [
+    "Ashford","Blackbriar","Briarwell","Cinderfell","Crowhurst","Dawnmere","Elderglen","Fallowmere","Frostwick",
+    "Glimmerholt","Graymark","Harthwood","Hawthorne","Ironfield","Kestrelmoor","Larkspur","Mossvale","Oakenshade",
+    "Pennwise","Rillwater","Rookford","Sablewell","Thistledown","Thornbridge","Underbough","Vellumhart","Wainwright",
+    "Westmere","Windrow","Wyrmwood"
+  ];
+
+  function randInt(maxExclusive) {
+    if (window.crypto && window.crypto.getRandomValues) {
+      const buf = new Uint32Array(1);
+      window.crypto.getRandomValues(buf);
+      return buf[0] % maxExclusive;
+    }
+    return Math.floor(Math.random() * maxExclusive);
+  }
+
+  function randomName() {
+    const first = FirstNames[randInt(FirstNames.length)];
+    const last = Surnames[randInt(Surnames.length)];
+    return `${first} ${last}`;
+  }
+
+  const GuildTypes = [
+    {
+      key: "adventurers",
+      label: "Adventurers",
+      groupTerm: "Guild",
+      domain: "Contracts, recoveries, escorts, investigations",
+      bias: 0,
+      kMod: 0,
+      pMod: 0,
+      offices: ["Guildmaster", "Deputy Guildmaster", "Contracts Clerk", "Quartermaster", "Field Captain", "Guild Marshal"],
+      baseFacilities: ["Bunks", "Job board", "Quartermaster cage"],
+      contracts: [
+        "Missing person recovery with proof required",
+        "Discreet retrieval with nonlethal preference",
+        "Hazard survey of roads, ruins, or woods",
+      ],
+      staffTitles: { leader: "Guildmaster", deputy: "Deputy Guildmaster", clerk: "Contracts Clerk" }
+    },
+    {
+      key: "merchants",
+      label: "Merchants",
+      groupTerm: "Consortium",
+      domain: "Trade permits, arbitration, caravans, pricing",
+      bias: +1,
+      kMod: +1,
+      pMod: 0,
+      offices: ["High Factor", "Contract Broker", "Ledger-Keeper", "Roadmaster", "Chief Appraiser"],
+      baseFacilities: ["Countinghouse", "Warehouses", "Escrow desk"],
+      contracts: [
+        "Escort or recovery of high-value cargo",
+        "Investigation of counterfeit goods and forged manifests",
+        "Discreet enforcement against route intimidation",
+      ],
+      staffTitles: { leader: "High Factor", deputy: "Deputy Factor", clerk: "Contracts Clerk" }
+    },
+    {
+      key: "craftsmen",
+      label: "Craftsmen",
+      groupTerm: "Lodge",
+      domain: "Quality standards, training, worksites, commissions",
+      bias: +1,
+      kMod: 0,
+      pMod: +1,
+      offices: ["Guildmaster Artisan", "Warden of Works", "Master Examiner", "Treasurer", "Supply Steward", "Site Foreman"],
+      baseFacilities: ["Workshops", "Testing bench or forge", "Materials store"],
+      contracts: [
+        "Recover stolen tools or patterns",
+        "Guard a critical shipment of materials",
+        "Investigate sabotage at a worksite",
+      ],
+      staffTitles: { leader: "Guildmaster Artisan", deputy: "Warden of Works", clerk: "Clerk" }
+    },
+    {
+      key: "healers",
+      label: "Healers",
+      groupTerm: "Collegium",
+      domain: "Medicine, apothecary, licensing, quarantine",
+      bias: 0,
+      kMod: +1,
+      pMod: +1,
+      offices: ["Provost of Physic", "Master Apothecary", "Hospitaller", "Censor of Practice", "Licensed Chirurgeon"],
+      baseFacilities: ["Clinic", "Herb store", "Records", "Small lab"],
+      contracts: [
+        "Reagent run with ecosystem constraints",
+        "Quiet delivery or patient escort",
+        "Poisoning investigation with chain-of-custody evidence",
+      ],
+      staffTitles: { leader: "Provost of Physic", deputy: "Master Apothecary", clerk: "Clerk" }
+    },
+    {
+      key: "rangers",
+      label: "Rangers",
+      groupTerm: "Conclave",
+      domain: "Patrols, rescue, trails, monster advisories",
+      bias: -1,
+      kMod: 0,
+      pMod: 0,
+      offices: ["High Warden", "Trail Captain", "Scoutmaster", "Warden", "Guide"],
+      baseFacilities: ["Trail office", "Map wall", "Safehouse contacts"],
+      contracts: [
+        "Search and rescue beyond patrol capacity",
+        "Poacher or predator tracking without escalating feuds",
+        "Survey of anomalous zones or ruins",
+      ],
+      staffTitles: { leader: "High Warden", deputy: "Trail Captain", clerk: "Clerk" }
+    },
+    {
+      key: "scribes",
+      label: "Scribes",
+      groupTerm: "Registry Hall",
+      domain: "Seals, records, maps, notarization, archives",
+      bias: 0,
+      kMod: +2,
+      pMod: +1,
+      offices: ["Master of Records", "Seal Warden", "Registrar", "Notary", "Cartographer", "Binder-Prime"],
+      baseFacilities: ["Archive", "Seal room", "Copy benches"],
+      contracts: [
+        "Recover stolen seals or ledger pages",
+        "Witness escort and evidence security",
+        "Discreet ledger retrieval for legal action",
+      ],
+      staffTitles: { leader: "Master of Records", deputy: "Seal Warden", clerk: "Clerk" }
+    },
+    {
+      key: "innkeepers",
+      label: "Innkeepers",
+      groupTerm: "League",
+      domain: "Hospitality standards, guest safety, information network",
+      bias: +1,
+      kMod: 0,
+      pMod: 0,
+      offices: ["Grand Host", "House Steward", "Keeper", "Doorwarden", "Whisper Clerk"],
+      baseFacilities: ["Notice network", "Safe inn markers", "Guestbook vault (small)"],
+      contracts: [
+        "Missing guest investigation with discretion",
+        "Stop extortion, firebug threats, or scams",
+        "Protect a traveler without exposing their identity",
+      ],
+      staffTitles: { leader: "Grand Host", deputy: "House Steward", clerk: "Clerk" }
+    },
+    {
+      key: "teamsters",
+      label: "Teamsters",
+      groupTerm: "Union",
+      domain: "Freight, wagons, stables, dispatch, warehousing",
+      bias: +1,
+      kMod: 0,
+      pMod: +1,
+      offices: ["Union Master", "Route Marshal", "Stablemaster", "Warehouse Foreman", "Claims Agent"],
+      baseFacilities: ["Stables", "Dispatch board", "Yard", "Warehouse office"],
+      contracts: [
+        "Recover stolen wagons or freight",
+        "Escort critical shipments through risk zones",
+        "Investigate sabotage of routes or equipment",
+      ],
+      staffTitles: { leader: "Union Master", deputy: "Route Marshal", clerk: "Clerk" }
+    },
+    {
+      key: "miners",
+      label: "Miners",
+      groupTerm: "Syndicate",
+      domain: "Claims, extraction, safety, assaying",
+      bias: 0,
+      kMod: 0,
+      pMod: 0,
+      offices: ["Syndic", "Mine Captain", "Safety Warden", "Assayer", "Shift Boss", "Lampmaster"],
+      baseFacilities: ["Claim office", "Gear cache", "Safety boards"],
+      contracts: [
+        "Cave-in rescue and hazard stabilization",
+        "Identify unknown subterranean threats",
+        "Secure a new seam against claim-jumpers",
+      ],
+      staffTitles: { leader: "Syndic", deputy: "Mine Captain", clerk: "Clerk" }
+    },
+    {
+      key: "fighters",
+      label: "Fighters",
+      groupTerm: "Hall",
+      domain: "Mercenary contracts, training, bodyguard standards",
+      bias: 0,
+      kMod: 0,
+      pMod: 0,
+      offices: ["Master-at-Arms", "Hall Captain", "Duel Marshal", "Sergeant", "Quartermaster"],
+      baseFacilities: ["Training yard", "Armory", "Contract desk"],
+      contracts: [
+        "Joint operation against a strong threat",
+        "Protect a negotiator and prevent escalation",
+        "Train and evaluate rookies through controlled engagements",
+      ],
+      staffTitles: { leader: "Master-at-Arms", deputy: "Hall Captain", clerk: "Contracts Clerk" }
+    },
+  ];
+    {
+      key: "thieves",
+      label: "Thieves",
+      groupTerm: "Accord",
+      domain: "Fences, information brokering, smuggling, recoveries, discretion-for-hire",
+      bias: -1,
+      kMod: -2,
+      pMod: +1,
+      offices: [
+        "Underboss",
+        "Fencewarden",
+        "Whisper Broker",
+        "Safehouse Keeper",
+        "Dropmaster",
+        "Ledger-Scrivener"
+      ],
+      baseFacilities: [
+        "Backroom office",
+        "Dead-drop registry",
+        "Fence window (discreet)"
+      ],
+      contracts: [
+        "Recover a specific item without public attention (no questions asked)",
+        "Identify a blackmailer, tail their courier, and secure proof",
+        "Break up a rival crew’s protection racket without escalating into open street violence"
+      ],
+      staffTitles: { leader: "Underboss", deputy: "Fencewarden", clerk: "Jobs Clerk" }
+    },
+    {
+      key: "assassins",
+      label: "Assassins",
+      groupTerm: "Cabal",
+      domain: "Covert eliminations, intimidation, sabotage, deniable operations",
+      bias: -1,
+      kMod: -3,
+      pMod: 0,
+      offices: [
+        "Cabal Master",
+        "Handler",
+        "Quartermaster",
+        "Cleanser",
+        "Watcher",
+        "Cipher-Scribe"
+      ],
+      baseFacilities: [
+        "Anonymous contract desk",
+        "Training room",
+        "Secure armory cache"
+      ],
+      contracts: [
+        "Deny a target’s escape route and force them to stand down (capture preferred)",
+        "Expose and neutralize a traitor inside a client organization (proof required)",
+        "Sabotage a violent faction’s leadership meeting to prevent a larger conflict"
+      ],
+      staffTitles: { leader: "Cabal Master", deputy: "Handler", clerk: "Cipher-Scribe" }
+    },
+
+
+  // ---------- Helpers ----------
+
+  function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+
+  function footprintFrom(settlementFactor, guildBias) {
+    const base = FootprintBaseByFactor[settlementFactor] ?? 2;
+    return clamp(base + guildBias, 0, 4);
+  }
+
+  function membersRangeFrom(footprint, settlementFactor) {
+    const r = MembersByFootprint[footprint] ?? MembersByFootprint[2];
+    return { min: r.min * settlementFactor, max: r.max * settlementFactor };
+  }
+
+  function standingLabel(score) {
+    const map = {
+      "-3": "Reviled (-3)",
+      "-2": "Distrusted (-2)",
+      "-1": "Questioned (-1)",
+      "0": "Known (0)",
+      "1": "Respected (+1)",
+      "2": "Esteemed (+2)",
+      "3": "Celebrated (+3)",
+    };
+    return map[String(score)] ?? "Known (0)";
+  }
+
+  function facilitiesFrom(guildType, footprint) {
+    const base = [...guildType.baseFacilities];
+    const scaled = FacilitiesByFootprint[footprint] ?? [];
+    const seen = new Set();
+    const combined = [...base, ...scaled].filter(x => {
+      const k = x.toLowerCase();
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+    return combined;
+  }
+
+  function populateStandingSelect(selectEl, includeAuto) {
+    selectEl.innerHTML = "";
+
+    if (includeAuto) {
+      const o = document.createElement("option");
+      o.textContent = "Auto (derived)";
+      o.value = "auto";
+      selectEl.appendChild(o);
+    }
+
+    ReputationScale.forEach(opt => {
+      const o = document.createElement("option");
+      o.textContent = opt.label;
+      o.value = String(opt.score);
+      selectEl.appendChild(o);
+    });
+  }
+
+  function deriveStandingFromLS(LS, footprint, guildType, which) {
+    const visibility =
+      (footprint === 0) ? -1 :
+      (footprint <= 2) ? 0 :
+      (footprint === 3) ? 1 : 2;
+
+    const mod = (which === "KS") ? guildType.kMod : guildType.pMod;
+    return clamp(LS + mod + visibility, -3, 3);
+  }
+
+  function computeStandings(LS_raw, footprint, guildType, ksValue, psValue) {
+    const LS = clamp(parseInt(LS_raw, 10), -3, 3);
+
+    const KS = (ksValue === "auto")
+      ? deriveStandingFromLS(LS, footprint, guildType, "KS")
+      : clamp(parseInt(ksValue, 10), -3, 3);
+
+    const PS = (psValue === "auto")
+      ? deriveStandingFromLS(LS, footprint, guildType, "PS")
+      : clamp(parseInt(psValue, 10), -3, 3);
+
+    return { LS, KS, PS };
+  }
+
+  // Match a numeric population to a settlement band.
+  function settlementKeyFromPopulation(popNumber) {
+    for (const s of SettlementTypes) {
+      const minOk = popNumber >= s.minPop;
+      const maxOk = (s.maxPop === null) ? true : popNumber <= s.maxPop;
+      if (minOk && maxOk) return s.key;
+    }
+    return null;
+  }
+
+  // ---------- UI wiring ----------
+
+  const elSettlementType = document.getElementById("settlementType");
+  const elSettlementPopulation = document.getElementById("settlementPopulation");
+
+  const elGuildType = document.getElementById("guildType");
+  const elLocalStanding = document.getElementById("localStanding");
+  const elKingdomStanding = document.getElementById("kingdomStanding");
+  const elPeerStanding = document.getElementById("peerStanding");
+
+  const elSettlementName = document.getElementById("settlementName");
+  const elGuildName = document.getElementById("guildName");
+
+  const elLeaderName = document.getElementById("leaderName");
+  const elDeputyName = document.getElementById("deputyName");
+  const elClerkName = document.getElementById("clerkName");
+
+  const elLeaderLabel = document.getElementById("leaderLabel");
+  const elDeputyLabel = document.getElementById("deputyLabel");
+  const elClerkLabel = document.getElementById("clerkLabel");
+
+  function addOptions(selectEl, options, getLabel, getValue) {
+    selectEl.innerHTML = "";
+    options.forEach(opt => {
+      const o = document.createElement("option");
+      o.textContent = getLabel(opt);
+      o.value = getValue(opt);
+      selectEl.appendChild(o);
+    });
+  }
+
+  addOptions(elSettlementType, SettlementTypes, o => o.label, o => o.key);
+  addOptions(elGuildType, GuildTypes, o => o.label, o => o.key);
+
+  populateStandingSelect(elLocalStanding, false);
+  populateStandingSelect(elKingdomStanding, true);
+  populateStandingSelect(elPeerStanding, true);
+
+  // Defaults
+  elSettlementType.value = "largeTown";
+  elGuildType.value = "adventurers";
+  elLocalStanding.value = "0";
+  elKingdomStanding.value = "auto";
+  elPeerStanding.value = "auto";
+
+  function getSelectedSettlement() {
+    return SettlementTypes.find(s => s.key === elSettlementType.value) ?? SettlementTypes[3];
+  }
+  function getSelectedGuildType() {
+    return GuildTypes.find(g => g.key === elGuildType.value) ?? GuildTypes[0];
+  }
+
+  function refreshTitleLabels() {
+    const gt = getSelectedGuildType();
+    const titles = gt.staffTitles ?? { leader: "Guildmaster", deputy: "Deputy", clerk: "Clerk" };
+    elLeaderLabel.textContent = `${titles.leader} Name`;
+    elDeputyLabel.textContent = `${titles.deputy} Name`;
+    elClerkLabel.textContent = `${titles.clerk} Name`;
+  }
+
+  function regenerateNamesIfBlank() {
+    if (!elLeaderName.value.trim()) elLeaderName.value = randomName();
+    if (!elDeputyName.value.trim()) elDeputyName.value = randomName();
+    if (!elClerkName.value.trim()) elClerkName.value = randomName();
+  }
+
+  function regenerateNamesForce() {
+    elLeaderName.value = randomName();
+    elDeputyName.value = randomName();
+    elClerkName.value = randomName();
+  }
+
+  // Prevent settlement change triggered by population from overwriting the typed population.
+  let settlementChangedByPopulation = false;
+
+  // If user chooses settlement type, populate the population field with the band.
+  function syncPopulationFromSettlement() {
+    if (settlementChangedByPopulation) return;
+    const s = getSelectedSettlement();
+    elSettlementPopulation.value = s.populationLabel;
+  }
+
+  // If user types a population number, select the matching settlement type band.
+  function syncSettlementFromPopulation() {
+    const raw = elSettlementPopulation.value.trim().replace(/,/g, "");
+    if (!/^\d+$/.test(raw)) return;
+    const pop = parseInt(raw, 10);
+    if (!Number.isFinite(pop)) return;
+
+    const key = settlementKeyFromPopulation(pop);
+    if (!key) return;
+
+    if (elSettlementType.value !== key) {
+      settlementChangedByPopulation = true;
+      elSettlementType.value = key;
+      settlementChangedByPopulation = false;
+    }
+  }
+
+  function render() {
+    const settlement = getSelectedSettlement();
+    const guildType = getSelectedGuildType();
+
+    const settlementName = (elSettlementName.value || "__________").trim();
+    const guildName = (elGuildName.value || "__________").trim();
+
+    const footprint = footprintFrom(settlement.factor, guildType.bias);
+    const members = membersRangeFrom(footprint, settlement.factor);
+    const fac = facilitiesFrom(guildType, footprint);
+
+    const standings = computeStandings(
+      elLocalStanding.value,
+      footprint,
+      guildType,
+      elKingdomStanding.value,
+      elPeerStanding.value
+    );
+
+    const fpLabels = ["Desk only", "Small chapter", "Established", "Major", "Dominant"];
+    const titles = guildType.staffTitles ?? { leader: "Guildmaster", deputy: "Deputy", clerk: "Clerk" };
+
+    refreshTitleLabels();
+    regenerateNamesIfBlank();
+
+    document.getElementById("outSettlementName").textContent = settlementName;
+    document.getElementById("outSettlementType").textContent = settlement.label;
+
+    const popRaw = elSettlementPopulation.value.trim();
+    const popDigits = popRaw.replace(/,/g, "");
+    const popIsNumber = /^\d+$/.test(popDigits);
+
+    if (popIsNumber) {
+      const n = parseInt(popDigits, 10);
+      const key = settlementKeyFromPopulation(n);
+      if (key) {
+        const band = getSelectedSettlement().populationLabel;
+        document.getElementById("outSettlementPopulation").textContent = `${n} (${band})`;
+      } else {
+        document.getElementById("outSettlementPopulation").textContent = String(n);
+      }
+    } else {
+      document.getElementById("outSettlementPopulation").textContent = popRaw || settlement.populationLabel;
+    }
+
+    document.getElementById("outGuildName").textContent = guildName;
+    document.getElementById("outGroupTerm").textContent = guildType.groupTerm;
+    document.getElementById("outDomain").textContent = guildType.domain;
+    document.getElementById("outFootprint").textContent = `${footprint} (${fpLabels[footprint]})`;
+    document.getElementById("outMembers").textContent = `${members.min} to ${members.max}`;
+    document.getElementById("outFacilities").textContent = fac.join(", ");
+    document.getElementById("outOffices").textContent = guildType.offices.join(", ");
+
+    document.getElementById("outLS").textContent = standingLabel(standings.LS);
+    document.getElementById("outKS").textContent = standingLabel(standings.KS);
+    document.getElementById("outPS").textContent = standingLabel(standings.PS);
+
+    document.getElementById("outLeaderTitle").textContent = titles.leader;
+    document.getElementById("outDeputyTitle").textContent = titles.deputy;
+    document.getElementById("outClerkTitle").textContent = titles.clerk;
+
+    document.getElementById("outLeaderName").textContent = elLeaderName.value.trim() || "__________";
+    document.getElementById("outDeputyName").textContent = elDeputyName.value.trim() || "__________";
+    document.getElementById("outClerkName").textContent = elClerkName.value.trim() || "__________";
+
+    const ul = document.getElementById("outContracts");
+    ul.innerHTML = "";
+    guildType.contracts.forEach(c => {
+      const li = document.createElement("li");
+      li.textContent = c;
+      ul.appendChild(li);
+    });
+  }
+
+  // Events
+
+  elSettlementType.addEventListener("change", () => {
+    syncPopulationFromSettlement();
+    render();
+  });
+
+  elSettlementPopulation.addEventListener("input", () => {
+    syncSettlementFromPopulation();
+    render();
+  });
+
+  elGuildType.addEventListener("change", () => { refreshTitleLabels(); render(); });
+
+  elLocalStanding.addEventListener("change", render);
+  elKingdomStanding.addEventListener("change", render);
+  elPeerStanding.addEventListener("change", render);
+
+  elSettlementName.addEventListener("input", render);
+  elGuildName.addEventListener("input", render);
+
+  elLeaderName.addEventListener("input", render);
+  elDeputyName.addEventListener("input", render);
+  elClerkName.addEventListener("input", render);
+
+  document.getElementById("btnRegenNames").addEventListener("click", () => {
+    regenerateNamesForce();
+    render();
+  });
+
+  document.getElementById("btnPrint").addEventListener("click", () => window.print());
+
+  document.getElementById("btnReset").addEventListener("click", () => {
+    elSettlementType.value = "largeTown";
+    elGuildType.value = "adventurers";
+
+    elLocalStanding.value = "0";
+    elKingdomStanding.value = "auto";
+    elPeerStanding.value = "auto";
+
+    elSettlementName.value = "";
+    elGuildName.value = "";
+
+    elLeaderName.value = "";
+    elDeputyName.value = "";
+    elClerkName.value = "";
+
+    refreshTitleLabels();
+
+    settlementChangedByPopulation = false;
+    syncPopulationFromSettlement();
+
+    render();
+  });
+
+  // Initialize
+  refreshTitleLabels();
+  syncPopulationFromSettlement();
+  render();
+</script>
+</body>
+</html>
