@@ -27,7 +27,6 @@
     .v { color: #111; }
     .section-title { margin: 14px 0 8px; font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; }
     ul { margin: 6px 0 0 18px; }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; white-space: pre-wrap; }
 
     @media print {
       body { margin: 0.5in; }
@@ -46,6 +45,9 @@
     <div id="controls" class="card">
       <label for="settlementType">Settlement Type</label>
       <select id="settlementType"></select>
+
+      <label for="settlementPopulation">Settlement Population (type a number or leave the range)</label>
+      <input id="settlementPopulation" type="text" placeholder="Example: 501" />
 
       <label for="guildType">Guild Type</label>
       <select id="guildType"></select>
@@ -83,7 +85,9 @@
       </div>
 
       <div class="hint">
-        Printing tip: click <b>Print / Save as PDF</b> and choose “Save as PDF” in your browser print dialog.
+        Population syncing rules:
+        - Choose a settlement type and the population field fills with that band.
+        - Type a population number and the settlement type auto-switches to the matching band.
       </div>
     </div>
 
@@ -124,16 +128,15 @@
 <script>
   // ---------- Configuration ----------
 
-  // Your requested settlement ranges and "Metropolis" replacement.
   const SettlementTypes = [
-    { key: "hamlet",     label: "Hamlet",     factor: 1, populationLabel: "80 to 400" },
-    { key: "village",    label: "Village",    factor: 2, populationLabel: "401 to 900" },
-    { key: "town",       label: "Town",       factor: 3, populationLabel: "2,000 to 5,000" },
-    { key: "city",       label: "City",       factor: 4, populationLabel: "5,001 to 25,000" },
-    { key: "metropolis", label: "Metropolis", factor: 5, populationLabel: "25,001+" },
+    { key: "hamlet",     label: "Hamlet",     factor: 1, minPop: 80,    maxPop: 400,   populationLabel: "80 to 400" },
+    { key: "village",    label: "Village",    factor: 2, minPop: 401,   maxPop: 900,   populationLabel: "401 to 900" },
+    { key: "smallTown",  label: "Small Town", factor: 3, minPop: 901,   maxPop: 1999,  populationLabel: "901 to 1,999" },
+    { key: "largeTown",  label: "Large Town", factor: 3, minPop: 2000,  maxPop: 5000,  populationLabel: "2,000 to 5,000" },
+    { key: "city",       label: "City",       factor: 4, minPop: 5001,  maxPop: 25000, populationLabel: "5,001 to 25,000" },
+    { key: "metropolis", label: "Metropolis", factor: 5, minPop: 25001, maxPop: null,  populationLabel: "25,001+" },
   ];
 
-  // Standing scale used for LS/KS/PS dropdowns.
   const ReputationScale = [
     { label: "Reviled (-3)", score: -3 },
     { label: "Distrusted (-2)", score: -2 },
@@ -144,8 +147,6 @@
     { label: "Celebrated (+3)", score: 3 },
   ];
 
-  // Footprint base by settlement factor (1..5): 0,1,2,2,3
-  // Then apply guild bias, clamp to 0..4
   const FootprintBaseByFactor = { 1: 0, 2: 1, 3: 2, 4: 2, 5: 3 };
 
   const MembersByFootprint = {
@@ -164,7 +165,6 @@
     4: ["Multiple sites", "Dedicated security", "Specialized facilities", "Civic presence"],
   };
 
-  // Name generation lists
   const FirstNames = [
     "Alden","Aric","Bram","Calder","Corin","Dain","Eamon","Elias","Ember","Faron","Galen","Garrick",
     "Hale","Ivo","Jasper","Kael","Liora","Lysander","Mara","Merrin","Nessa","Oren","Pera","Quinn",
@@ -193,8 +193,6 @@
     return `${first} ${last}`;
   }
 
-  // Guild types with titles and modifiers.
-  // kMod/pMod remain available for "Auto" mode of KS/PS.
   const GuildTypes = [
     {
       key: "adventurers",
@@ -366,6 +364,66 @@
       ],
       staffTitles: { leader: "Master-at-Arms", deputy: "Hall Captain", clerk: "Contracts Clerk" }
     },
+
+    /* NEW: Thieves (Accord) */
+    {
+      key: "thieves",
+      label: "Thieves",
+      groupTerm: "Accord",
+      domain: "Fences, information brokering, smuggling, recoveries, discretion-for-hire",
+      bias: -1,
+      kMod: -2,
+      pMod: +1,
+      offices: [
+        "Underboss",
+        "Fencewarden",
+        "Whisper Broker",
+        "Safehouse Keeper",
+        "Dropmaster",
+        "Ledger-Scrivener"
+      ],
+      baseFacilities: [
+        "Backroom office",
+        "Dead-drop registry",
+        "Fence window (discreet)"
+      ],
+      contracts: [
+        "Recover a specific item without public attention (no questions asked)",
+        "Identify a blackmailer, tail their courier, and secure proof",
+        "Break up a rival crew protection racket without escalating into open street violence"
+      ],
+      staffTitles: { leader: "Underboss", deputy: "Fencewarden", clerk: "Jobs Clerk" }
+    },
+
+    /* NEW: Assassins (Cabal) */
+    {
+      key: "assassins",
+      label: "Assassins",
+      groupTerm: "Cabal",
+      domain: "Covert eliminations, intimidation, sabotage, deniable operations",
+      bias: -1,
+      kMod: -3,
+      pMod: 0,
+      offices: [
+        "Cabal Master",
+        "Handler",
+        "Quartermaster",
+        "Cleanser",
+        "Watcher",
+        "Cipher-Scribe"
+      ],
+      baseFacilities: [
+        "Anonymous contract desk",
+        "Training room",
+        "Secure armory cache"
+      ],
+      contracts: [
+        "Deny a target escape route and force them to stand down (capture preferred)",
+        "Expose and neutralize a traitor inside a client organization (proof required)",
+        "Sabotage a violent faction leadership meeting to prevent a larger conflict"
+      ],
+      staffTitles: { leader: "Cabal Master", deputy: "Handler", clerk: "Cipher-Scribe" }
+    },
   ];
 
   // ---------- Helpers ----------
@@ -408,7 +466,6 @@
     return combined;
   }
 
-  // Populate a standing dropdown. KS/PS include "Auto (derived)" as the first option.
   function populateStandingSelect(selectEl, includeAuto) {
     selectEl.innerHTML = "";
 
@@ -427,7 +484,6 @@
     });
   }
 
-  // Derive KS/PS when set to Auto.
   function deriveStandingFromLS(LS, footprint, guildType, which) {
     const visibility =
       (footprint === 0) ? -1 :
@@ -452,11 +508,21 @@
     return { LS, KS, PS };
   }
 
+  function settlementKeyFromPopulation(popNumber) {
+    for (const s of SettlementTypes) {
+      const minOk = popNumber >= s.minPop;
+      const maxOk = (s.maxPop === null) ? true : popNumber <= s.maxPop;
+      if (minOk && maxOk) return s.key;
+    }
+    return null;
+  }
+
   // ---------- UI wiring ----------
 
   const elSettlementType = document.getElementById("settlementType");
-  const elGuildType = document.getElementById("guildType");
+  const elSettlementPopulation = document.getElementById("settlementPopulation");
 
+  const elGuildType = document.getElementById("guildType");
   const elLocalStanding = document.getElementById("localStanding");
   const elKingdomStanding = document.getElementById("kingdomStanding");
   const elPeerStanding = document.getElementById("peerStanding");
@@ -489,15 +555,14 @@
   populateStandingSelect(elKingdomStanding, true);
   populateStandingSelect(elPeerStanding, true);
 
-  // Defaults
-  elSettlementType.value = "town";
+  elSettlementType.value = "largeTown";
   elGuildType.value = "adventurers";
   elLocalStanding.value = "0";
   elKingdomStanding.value = "auto";
   elPeerStanding.value = "auto";
 
   function getSelectedSettlement() {
-    return SettlementTypes.find(s => s.key === elSettlementType.value) ?? SettlementTypes[2];
+    return SettlementTypes.find(s => s.key === elSettlementType.value) ?? SettlementTypes[3];
   }
   function getSelectedGuildType() {
     return GuildTypes.find(g => g.key === elGuildType.value) ?? GuildTypes[0];
@@ -506,7 +571,6 @@
   function refreshTitleLabels() {
     const gt = getSelectedGuildType();
     const titles = gt.staffTitles ?? { leader: "Guildmaster", deputy: "Deputy", clerk: "Clerk" };
-
     elLeaderLabel.textContent = `${titles.leader} Name`;
     elDeputyLabel.textContent = `${titles.deputy} Name`;
     elClerkLabel.textContent = `${titles.clerk} Name`;
@@ -522,6 +586,30 @@
     elLeaderName.value = randomName();
     elDeputyName.value = randomName();
     elClerkName.value = randomName();
+  }
+
+  let settlementChangedByPopulation = false;
+
+  function syncPopulationFromSettlement() {
+    if (settlementChangedByPopulation) return;
+    const s = getSelectedSettlement();
+    elSettlementPopulation.value = s.populationLabel;
+  }
+
+  function syncSettlementFromPopulation() {
+    const raw = elSettlementPopulation.value.trim().replace(/,/g, "");
+    if (!/^\d+$/.test(raw)) return;
+    const pop = parseInt(raw, 10);
+    if (!Number.isFinite(pop)) return;
+
+    const key = settlementKeyFromPopulation(pop);
+    if (!key) return;
+
+    if (elSettlementType.value !== key) {
+      settlementChangedByPopulation = true;
+      elSettlementType.value = key;
+      settlementChangedByPopulation = false;
+    }
   }
 
   function render() {
@@ -549,12 +637,26 @@
     refreshTitleLabels();
     regenerateNamesIfBlank();
 
-    // Settlement header
     document.getElementById("outSettlementName").textContent = settlementName;
     document.getElementById("outSettlementType").textContent = settlement.label;
-    document.getElementById("outSettlementPopulation").textContent = settlement.populationLabel;
 
-    // Guild profile
+    const popRaw = elSettlementPopulation.value.trim();
+    const popDigits = popRaw.replace(/,/g, "");
+    const popIsNumber = /^\d+$/.test(popDigits);
+
+    if (popIsNumber) {
+      const n = parseInt(popDigits, 10);
+      const key = settlementKeyFromPopulation(n);
+      if (key) {
+        const band = getSelectedSettlement().populationLabel;
+        document.getElementById("outSettlementPopulation").textContent = `${n} (${band})`;
+      } else {
+        document.getElementById("outSettlementPopulation").textContent = String(n);
+      }
+    } else {
+      document.getElementById("outSettlementPopulation").textContent = popRaw || settlement.populationLabel;
+    }
+
     document.getElementById("outGuildName").textContent = guildName;
     document.getElementById("outGroupTerm").textContent = guildType.groupTerm;
     document.getElementById("outDomain").textContent = guildType.domain;
@@ -567,7 +669,6 @@
     document.getElementById("outKS").textContent = standingLabel(standings.KS);
     document.getElementById("outPS").textContent = standingLabel(standings.PS);
 
-    // Leadership
     document.getElementById("outLeaderTitle").textContent = titles.leader;
     document.getElementById("outDeputyTitle").textContent = titles.deputy;
     document.getElementById("outClerkTitle").textContent = titles.clerk;
@@ -576,7 +677,6 @@
     document.getElementById("outDeputyName").textContent = elDeputyName.value.trim() || "__________";
     document.getElementById("outClerkName").textContent = elClerkName.value.trim() || "__________";
 
-    // Contracts list
     const ul = document.getElementById("outContracts");
     ul.innerHTML = "";
     guildType.contracts.forEach(c => {
@@ -586,8 +686,16 @@
     });
   }
 
-  // Events
-  elSettlementType.addEventListener("change", render);
+  elSettlementType.addEventListener("change", () => {
+    syncPopulationFromSettlement();
+    render();
+  });
+
+  elSettlementPopulation.addEventListener("input", () => {
+    syncSettlementFromPopulation();
+    render();
+  });
+
   elGuildType.addEventListener("change", () => { refreshTitleLabels(); render(); });
 
   elLocalStanding.addEventListener("change", render);
@@ -609,7 +717,7 @@
   document.getElementById("btnPrint").addEventListener("click", () => window.print());
 
   document.getElementById("btnReset").addEventListener("click", () => {
-    elSettlementType.value = "town";
+    elSettlementType.value = "largeTown";
     elGuildType.value = "adventurers";
 
     elLocalStanding.value = "0";
@@ -624,10 +732,15 @@
     elClerkName.value = "";
 
     refreshTitleLabels();
+
+    settlementChangedByPopulation = false;
+    syncPopulationFromSettlement();
+
     render();
   });
 
   refreshTitleLabels();
+  syncPopulationFromSettlement();
   render();
 </script>
 </body>
